@@ -15,6 +15,16 @@
         * { box-sizing: border-box; font-family: 'Press Start 2P', cursive; touch-action: manipulation; user-select: none; }
         body { margin: 0; background: #000; color: #e0e0e0; overflow: hidden; width: 100vw; height: 100vh; }
 
+        /* CONTROLES FIXOS (TELA CHEIA E MÚSICA) */
+        .system-controls {
+            position: fixed; top: 10px; right: 10px; z-index: 1000;
+            display: flex; gap: 10px;
+        }
+        .sys-btn { 
+            background: rgba(0,0,0,0.6); border: 1px solid var(--gold); 
+            color: var(--gold); padding: 8px; font-size: 8px; cursor: pointer;
+        }
+
         /* ANIMAÇÕES */
         @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-5px);} 75% {transform: translateX(5px);} }
         .animate-shake { animation: shake 0.2s; }
@@ -26,13 +36,6 @@
             100% { transform: translateX(0) scale(1); }
         }
         .animate-player-atk { animation: player-attack-motion 0.6s ease-in-out; position: relative; z-index: 10; }
-
-        @keyframes pulse-red {
-            0% { box-shadow: inset 0 0 0px red; }
-            50% { box-shadow: inset 0 0 20px red; }
-            100% { box-shadow: inset 0 0 0px red; }
-        }
-        .low-hp { animation: pulse-red 1s infinite; }
 
         /* TELAS */
         .screen { display: none; width: 100vw; height: 100vh; padding: 20px; flex-direction: column; align-items: center; justify-content: center; background-size: cover; background-position: center; }
@@ -49,17 +52,19 @@
         .disabled-state { pointer-events: none; opacity: 0.6; }
 
         .item-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-height: 250px; overflow-y: auto; padding: 5px; }
-        .card { background: #0d0e18; border: 2px solid #444; padding: 10px; display: flex; align-items: center; gap: 10px; }
-        .icon { width: 45px; height: 45px; background-size: 450px; image-rendering: pixelated; border: 1px solid #333; flex-shrink: 0; }
-
         .bar-container { width: 100%; height: 12px; background: #333; border: 2px solid #fff; margin: 4px 0; overflow: hidden; }
-        .bar-fill { height: 100%; transition: width 0.4s; box-shadow: 0 0 10px rgba(255,255,255,0.2); }
+        .bar-fill { height: 100%; transition: width 0.4s; }
         
         .battle-log { background: #000; border: 2px solid var(--gold); height: 100px; width: 100%; overflow-y: auto; padding: 8px; font-size: 8px; color: #0f0; margin-top: 10px; line-height: 1.5; }
     </style>
 </head>
 <body>
-    <audio id="bgm" src="music.mp3" loop></audio>
+    <audio id="bgm" src="https://www.chosic.com/wp-content/uploads/2021/07/The-Old-Tower-Inn.mp3" loop></audio>
+
+    <div class="system-controls">
+        <button class="sys-btn" onclick="toggleMusic()">🎵 MÚSICA: <span id="mus-status">OFF</span></button>
+        <button class="sys-btn" onclick="toggleFS()">📺 TELA CHEIA</button>
+    </div>
 
     <div id="scr-start" class="screen active" style="background: radial-gradient(#1c1f33, #000);">
         <div class="ui-panel" style="max-width: 500px; text-align: center;">
@@ -70,7 +75,6 @@
                 <button onclick="initGame('Mago', '97072.jpg')">🧙 MAGO</button>
                 <button onclick="initGame('Maldição', '97073.jpg')">💀 MALDIÇÃO</button>
                 <button onclick="initGame('Humano', '97074.jpg')">⚔️ HUMANO</button>
-                <button onclick="importSave()" style="border-color: var(--xp); color: var(--xp); margin-top:10px;">📥 CARREGAR SAVE</button>
             </div>
         </div>
     </div>
@@ -84,21 +88,18 @@
 
             <div class="stats-banner">
                 <div>❤️ HP: <span id="st-hp">100</span></div>
-                <div>💧 MP: <span id="st-mana">50</span></div>
                 <div>⚔️ FOR: <span id="st-str">10</span></div>
-                <div>⚡ VEL: <span id="st-spd">10</span></div>
+                <div>💰 BPS: <span id="hub-coins">0</span></div>
+                <div>⭐ LV: <span id="st-lv">1</span></div>
             </div>
 
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                 <button onclick="changeScreen('scr-battle')" style="grid-column: span 2; padding: 18px; background: #3d1414;">⚔️ ENFRENTAR BOSS</button>
                 <button onclick="changeScreen('scr-habits')" style="border-color:#2ecc71;">🏋️ MISSÕES</button>
-                <button onclick="changeScreen('scr-stats')" style="border-color:#3498db;">👤 UPGRADE</button>
-                <button onclick="changeScreen('scr-shop')">🛒 LOJA</button>
                 <button onclick="changeScreen('scr-inv')">🎒 MOCHILA</button>
-                <button onclick="exportSave()" style="font-size:6px; color: #9b59b6;">💾 SALVAR</button>
+                <button onclick="exportSave()" style="font-size:6px;">💾 EXPORTAR</button>
                 <button onclick="resetGame()" style="color:#e74c3c; font-size:6px;">❌ RESET</button>
             </div>
-            <p style="text-align:center; font-size:10px; margin-top:15px;">💰 SALDO: <span id="hub-coins">0</span> bps</p>
         </div>
     </div>
 
@@ -110,64 +111,55 @@
                 <input type="text" id="new-task-name" placeholder="Nova tarefa..." style="margin-bottom:0; font-size:7px; flex:2;">
                 <button onclick="addNewTask()" style="flex:1;">ADD</button>
             </div>
-            <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;"></div>
-            <div id="daily-feedback" style="margin-top:15px; font-size:8px; color:var(--gold); text-align:center; display:none;">
-                🎉 BOM TRABALHO! VOCÊ CUIDOU DO SEU DIA.
-            </div>
+            <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="daily-feedback" style="margin-top:15px; font-size:8px; color:var(--gold); text-align:center; display:none;">🎉 DIA CONCLUÍDO!</div>
         </div>
     </div>
-
-    <div id="scr-stats" class="screen" style="background:#000;"><div class="ui-panel"><button onclick="changeScreen('scr-hub')">< VOLTAR</button><h3 style="text-align:center;">TREINO</h3><p style="text-align:center; font-size: 9px;">PONTOS: <span id="train-pts">0</span></p><div style="display:flex; flex-direction:column; gap:12px;" id="stat-upgrades"></div></div></div>
-    <div id="scr-shop" class="screen" style="background:#000;"><div class="ui-panel"><button onclick="changeScreen('scr-hub')">< VOLTAR</button><h3 style="text-align:center;">LOJA</h3><div id="shop-list" class="item-grid"></div></div></div>
-    <div id="scr-inv" class="screen" style="background:#000;"><div class="ui-panel"><button onclick="changeScreen('scr-hub')">< VOLTAR</button><h3 style="text-align:center;">MOCHILA</h3><div id="inv-list" class="item-grid"></div></div></div>
 
     <div id="scr-battle" class="screen" style="background:#050505;">
         <div style="display:flex; justify-content:space-around; width:100%; align-items:flex-end; margin-bottom:20px;">
             <div id="fig-p" style="text-align:center; width: 140px;">
                 <img id="bt-img-p" src="" style="width:100px; height: 100px; object-fit: cover; border:2px solid #fff;">
-                <div class="bar-container"><div id="bt-hp-p" class="bar-fill" style="background:linear-gradient(90deg, #27ae60, #2ecc71); width:100%;"></div></div>
-                <div class="bar-container"><div id="bt-mn-p" class="bar-fill" style="background:linear-gradient(90deg, #2980b9, #3498db); width:100%;"></div></div>
-                <p style="font-size:7px;" id="bt-name-p">VOCÊ</p>
+                <div class="bar-container"><div id="bt-hp-p" class="bar-fill" style="background:#2ecc71; width:100%;"></div></div>
             </div>
             <div id="fig-b" style="text-align:center; width: 160px;">
                 <img id="bt-img-b" src="" style="width:130px; height: 130px; object-fit: cover; border:2px solid #f00;">
-                <div class="bar-container"><div id="bt-hp-b" class="bar-fill" style="background:linear-gradient(90deg, #c0392b, #e74c3c); width:100%;"></div></div>
-                <p id="bt-name-b" style="font-size:7px;">BOSS</p>
+                <div class="bar-container"><div id="bt-hp-b" class="bar-fill" style="background:#e74c3c; width:100%;"></div></div>
             </div>
         </div>
         <div id="battle-log" class="battle-log"></div>
-        <div id="battle-btns" style="display:flex; gap:10px; margin-top:20px; flex-wrap: wrap; justify-content: center;"></div>
+        <div id="battle-btns" style="display:flex; gap:10px; margin-top:20px;"></div>
     </div>
 
     <script>
-        // BANCO DE DADOS
-        const RARITY = { C: { n: 'Comum', m: 1, color: '#bdc3c7' }, L: { n: 'Lendário', m: 50, color: '#f1c40f' } };
-        const ITEMS = [{ id: 'w1', t: 'w', n: 'Lâmina BPS', p: 100, atk: 50, r: RARITY.L, img: '97076.jpg', pos: '0 0' }];
-        const BOSSES = [{ n: "Elemental", img: "97056.jpg", hp: 150, atk: 20, rew: 100 }, { n: "Serpente", img: "97055.jpg", hp: 500, atk: 45, rew: 500 }];
-
+        const BOSSES = [{ n: "Elemental", img: "97056.jpg", hp: 150, atk: 20, rew: 100 }];
         let p = JSON.parse(localStorage.getItem("bps_v3_save")) || {
             name: "", race: "", img: "", coins: 100, pts: 0, lv: 1, xp: 0, xpNext: 100,
-            str: 10, manaM: 50, spd: 10, hpM: 100, inv: [], bossIdx: 0,
-            customTasks: [], dailyDone: 0, lastLogin: new Date().toLocaleDateString()
+            str: 10, hpM: 100, customTasks: [], dailyDone: 0
         };
+        let bt = { active: false, pHP: 0, bHP: 0 };
+        let musicOn = false;
 
-        let bt = { active: false, pHP: 0, pMN: 0, bHP: 0 };
-
-        // SISTEMA INICIAL
-        function initGame(race, img) {
-            const name = document.getElementById("p-name-input").value.trim();
-            if(!name) return alert("Dê um nome ao herói!");
-            p.name = name; p.race = race; p.img = img;
-            changeScreen('scr-hub');
-            checkDailyReset();
+        // CONTROLES DE SISTEMA
+        function toggleMusic() {
+            const audio = document.getElementById("bgm");
+            musicOn = !musicOn;
+            if(musicOn) audio.play(); else audio.pause();
+            document.getElementById("mus-status").textContent = musicOn ? "ON" : "OFF";
         }
 
-        function checkDailyReset() {
-            const hoje = new Date().toLocaleDateString();
-            if (p.lastLogin !== hoje) {
-                p.dailyDone = 0; p.lastLogin = hoje;
-                alert("🌅 UM NOVO DIA COMEÇOU! Como vai seu dia?");
-            }
+        function toggleFS() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else if (document.exitFullscreen) document.exitFullscreen();
+        }
+
+        // INICIAR JOGO
+        function initGame(race, img) {
+            const name = document.getElementById("p-name-input").value.trim();
+            if(!name) return alert("Dê um nome!");
+            p.name = name; p.race = race; p.img = img;
+            changeScreen('scr-hub');
+            if(!musicOn) toggleMusic(); // Tenta ligar a música no primeiro clique
         }
 
         function changeScreen(id) {
@@ -182,43 +174,28 @@
         function addNewTask() {
             const input = document.getElementById("new-task-name");
             if(!input.value) return;
-            p.customTasks.push({ id: Date.now(), n: input.value, pts: 5 });
+            p.customTasks.push({ n: input.value, pts: 5 });
             input.value = ""; renderTasks();
         }
 
         function renderTasks() {
-            const list = document.getElementById("tasks-list");
-            list.innerHTML = "";
-            const fixas = [{n: 'Beber Água', pts: 3}, {n: 'Estudar', pts: 5}];
-            [...fixas, ...p.customTasks].forEach(t => {
+            const list = document.getElementById("tasks-list"); list.innerHTML = "";
+            [{n:'Água', pts:3}, ...p.customTasks].forEach(t => {
                 const btn = document.createElement("button");
                 btn.innerHTML = `${t.n} (+${t.pts} PTS)`;
                 btn.onclick = () => {
-                    p.dailyDone++; addPoints(t.pts, t.n);
-                    if(p.dailyDone === 3) {
-                        document.getElementById("daily-feedback").style.display = "block";
-                        alert("🎉 Bom trabalho! Você cuidou do seu dia.");
-                    }
-                    if(Math.random() < 0.3) triggerRandomEvent();
+                    p.dailyDone++; p.pts += t.pts;
+                    if(p.dailyDone === 3) document.getElementById("daily-feedback").style.display = "block";
+                    alert(`Feito! +${t.pts} pontos.`); updateUI();
                 };
                 list.appendChild(btn);
             });
         }
 
-        function triggerRandomEvent() {
-            const evs = [
-                { n: "SORTE!", m: "Achou 50 moedas!", f: () => p.coins += 50 },
-                { n: "BÊNÇÃO", m: "+100 XP!", f: () => gainXP(100) }
-            ];
-            const ev = evs[Math.floor(Math.random() * evs.length)];
-            alert(`✨ EVENTO: ${ev.n}\n${ev.m}`);
-            ev.f(); updateUI();
-        }
-
         // BATALHA COM ANIMAÇÃO
         function startBattle() {
-            const boss = BOSSES[p.bossIdx]; if(!boss) return changeScreen('scr-hub');
-            bt = { active: true, pHP: p.hpM, pMaxHP: p.hpM, pMN: p.manaM, pMaxMN: p.manaM, bHP: boss.hp, bMaxHP: boss.hp, atkP: p.str, defP: 0 };
+            const boss = BOSSES[0];
+            bt = { active: true, pHP: p.hpM, pMaxHP: p.hpM, bHP: boss.hp, bMaxHP: boss.hp };
             document.getElementById("bt-img-p").src = p.img;
             document.getElementById("bt-img-b").src = boss.img;
             document.getElementById("battle-btns").innerHTML = `<button onclick="atkPlayer()">⚔️ ATAQUE</button>`;
@@ -229,14 +206,13 @@
             if(!bt.active) return;
             const img = document.getElementById("bt-img-p");
             const btns = document.getElementById("battle-btns");
-
             btns.classList.add('disabled-state');
             img.classList.add('animate-player-atk');
 
             setTimeout(() => {
-                let dmg = Math.floor(bt.atkP * (0.9 + Math.random() * 0.3));
+                let dmg = p.str + Math.floor(Math.random()*5);
                 bt.bHP -= dmg;
-                log(`Você causou ${dmg} dano!`, '#0f0');
+                log(`Você atacou: ${dmg} dano!`, '#0f0');
                 anim('fig-b'); refreshBars();
                 if(bt.bHP <= 0) win();
             }, 300);
@@ -249,40 +225,30 @@
         }
 
         function bossTurn() {
-            const b = BOSSES[p.bossIdx];
-            let dmg = b.atk; bt.pHP -= dmg;
-            log(`${b.n} causou ${dmg} dano!`, 'red');
+            let dmg = 15; bt.pHP -= dmg;
+            log(`Boss atacou: ${dmg} dano!`, 'red');
             anim('fig-p'); refreshBars();
-            if(bt.pHP <= 0) { alert("Derrotado..."); changeScreen('scr-hub'); }
             document.getElementById("battle-btns").classList.remove('disabled-state');
         }
 
-        // UTILITÁRIOS
-        function addPoints(v, task) { p.pts += v; gainXP(v * 10); updateUI(); }
-        function gainXP(v) { 
-            p.xp += v; 
-            if(p.xp >= p.xpNext) { p.lv++; p.xp = 0; p.xpNext *= 1.5; p.pts += 5; alert("LEVEL UP!"); }
-        }
         function updateUI() {
             document.getElementById("hub-name").textContent = p.name;
+            document.getElementById("st-lv").textContent = p.lv;
             document.getElementById("st-hp").textContent = p.hpM;
             document.getElementById("st-str").textContent = p.str;
             document.getElementById("hub-coins").textContent = p.coins;
             localStorage.setItem("bps_v3_save", JSON.stringify(p));
         }
+
         function log(m, c) { const l = document.getElementById("battle-log"); l.innerHTML = `<div style="color:${c}">> ${m}</div>` + l.innerHTML; }
         function anim(id) { const e = document.getElementById(id); e.classList.add('animate-shake'); setTimeout(()=>e.classList.remove('animate-shake'),200); }
         function refreshBars() {
             document.getElementById("bt-hp-p").style.width = (bt.pHP/bt.pMaxHP*100)+"%";
             document.getElementById("bt-hp-b").style.width = (bt.bHP/bt.bMaxHP*100)+"%";
         }
-        function win() { alert("Vitória!"); p.bossIdx++; changeScreen('scr-hub'); }
+        function win() { alert("BOSS DERROTADO!"); changeScreen('scr-hub'); }
         function resetGame() { localStorage.clear(); location.reload(); }
-        function exportSave() { prompt("SAVE CODE:", btoa(JSON.stringify(p))); }
-        function importSave() { 
-            const code = prompt("COLE O CÓDIGO:"); 
-            if(code) { p = JSON.parse(atob(code)); updateUI(); changeScreen('scr-hub'); }
-        }
+        function exportSave() { prompt("CÓDIGO SAVE:", btoa(JSON.stringify(p))); }
     </script>
 </body>
             </html>
