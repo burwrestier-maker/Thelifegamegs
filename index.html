@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BPS Chronicles - Ultimate Edition</title>
+    <link rel="icon" href="97071.jpg">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --gold: #f1c40f; --bg: #0d0e18; --panel: #1c1f33; --border: #4a517a;
+            --xp: #9b59b6; --rare: #3498db; --epic: #9b59b6; --legendary: #f1c40f;
+            --goldlife: #00e676; /* Cor da nova moeda GoldLife */
+        }
+
+        * { box-sizing: border-box; font-family: 'Press Start 2P', cursive; touch-action: manipulation; user-select: none; }
+
+        body { margin: 0; background: #000; color: #e0e0e0; overflow: hidden; width: 100vw; height: 100vh; }
+
+        /* --- ESTÉTICA DE BATALHA --- */
+        .battle-stage {
+            position: relative; width: 100%; height: 300px;
+            display: flex; justify-content: space-around; align-items: center;
+            perspective: 600px; margin-top: 20px;
+        }
+
+        /* Camada de Efeitos Visuais (Skills) */
+        #fx-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10; overflow: hidden;
+        }
+
+        .character-platform { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 5; }
+
+        .base-oval {
+            width: 150px; height: 40px; background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%; box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            margin-top: -20px; border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .sprite {
+            width: 130px; height: 130px; object-fit: contain;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.9));
+            z-index: 2; image-rendering: pixelated;
+            animation: idleFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes idleFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        /* ANIMAÇÕES FÍSICAS */
+        .atk-p { animation: dashP 0.4s ease-in-out; }
+        @keyframes dashP { 0% { transform: translate(0, 0); } 50% { transform: translate(70px, -30px) scale(1.1); } 100% { transform: translate(0, 0); } }
+
+        .atk-b { animation: dashB 0.4s ease-in-out; }
+        @keyframes dashB { 0% { transform: translate(0, 0); } 50% { transform: translate(-70px, 30px) scale(1.1); } 100% { transform: translate(0, 0); } }
+
+        .take-dmg { animation: blink 0.15s 3; }
+        @keyframes blink { 0%, 100% { opacity: 1; filter: brightness(1); } 50% { opacity: 0.5; filter: brightness(3) sepia(1) saturate(500%) hue-rotate(-50deg); } }
+
+        .shake-screen { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+
+        /* ANIMAÇÕES DE SKILLS (VISUAL FX) */
+        .fx-fireball {
+            position: absolute; width: 40px; height: 40px; background: radial-gradient(circle, #ffeb3b, #f44336);
+            border-radius: 50%; box-shadow: 0 0 20px #ff9800;
+            left: 20%; top: 40%;
+            animation: shootFire 0.6s forwards linear;
+        }
+        @keyframes shootFire { to { left: 75%; transform: scale(1.5); opacity: 0; } }
+
+        .fx-heal {
+            position: absolute; width: 100px; height: 100px; border: 4px solid #00e676; border-radius: 50%;
+            left: 15%; top: 30%; opacity: 0;
+            box-shadow: 0 0 30px #00e676 inset;
+            animation: riseHeal 0.8s forwards ease-out;
+        }
+        @keyframes riseHeal { 0% { transform: translateY(20px) scale(0.5); opacity: 1; } 100% { transform: translateY(-50px) scale(1.2); opacity: 0; } }
+
+        .fx-slash {
+            position: absolute; width: 100px; height: 100px; background: #fff;
+            clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+            left: 70%; top: 30%; opacity: 0;
+            animation: slashHit 0.3s forwards;
+        }
+        @keyframes slashHit { 0% { transform: rotate(45deg) scale(0); opacity: 1; } 50% { transform: rotate(45deg) scale(1.5); opacity: 1; } 100% { opacity: 0; } }
+
+        /* --- INTERFACE --- */
+        .ui-panel { background: var(--panel); border: 4px solid var(--border); padding: 20px; width: 95%; max-width: 800px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; }
+        .screen { display: none; width: 100vw; height: 100vh; padding: 20px; flex-direction: column; align-items: center; justify-content: center; background-size: cover; background-position: center; transition: 0.8s; }
+        .active { display: flex; }
+        
+        .stats-banner { background: rgba(0,0,0,0.8); border: 2px solid var(--gold); padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 8px; }
+        
+        button { background: linear-gradient(#444, #111); color: var(--gold); border: 2px solid var(--gold); padding: 12px; cursor: pointer; font-size: 8px; text-transform: uppercase; transition: 0.2s; }
+        button:hover:not(:disabled) { background: var(--gold); color: #000; }
+        button:active { transform: translateY(3px); }
+        button:disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+
+        /* Estilo Botão Especial (Fullscreen/Music) */
+        .utility-btn { position: absolute; top: 10px; right: 10px; z-index: 100; display: flex; gap: 5px; }
+        .u-btn { width: 40px; height: 40px; font-size: 16px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+
+        .bar-container { width: 100%; height: 12px; background: #222; border: 2px solid #fff; margin: 5px 0; overflow: hidden; position: relative; }
+        .bar-fill { height: 100%; transition: width 0.4s ease-in-out; }
+        .battle-log { background: rgba(0,0,0,0.85); border: 2px solid var(--gold); height: 100px; width: 100%; overflow-y: auto; padding: 10px; font-size: 8px; color: #0f0; margin-top: 15px; }
+
+        .item-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-height: 280px; overflow-y: auto; margin-top: 10px; }
+        .card { background: #0d0e18; border: 2px solid #444; padding: 8px; display: flex; align-items: center; gap: 8px; font-size: 7px; }
+        .icon-box { width: 40px; height: 40px; background-size: cover; border: 1px solid #666; flex-shrink: 0; }
+        
+        /* Diferenciação Visual Skills vs Armas */
+        .type-skill { border-style: dashed; }
+        .type-weapon { border-style: solid; }
+
+        /* Raridades */
+        .rarity-R { border-color: var(--rare); box-shadow: 0 0 5px var(--rare); }
+        .rarity-E { border-color: var(--epic); box-shadow: 0 0 5px var(--epic); }
+        .rarity-L { border-color: var(--legendary); box-shadow: 0 0 8px var(--legendary); }
+        
+        .tab-bar { display: flex; gap: 5px; margin-bottom: 10px; }
+        .tab-bar button { flex: 1; padding: 8px; font-size: 6px; }
+    </style>
+</head>
+<body id="game-body">
+
+    <audio id="bg-music" loop>
+        <source src="musica.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="utility-btn">
+        <button class="u-btn" onclick="toggleFullScreen()">⛶</button>
+        <button class="u-btn" onclick="toggleMusic()">🎵</button>
+    </div>
+
+    <div id="scr-start" class="screen active" style="background: radial-gradient(#1c1f33, #000);">
+        <div class="ui-panel" style="max-width: 450px; text-align: center;">
+            <h1 style="color:var(--gold); font-size: 18px; margin-bottom: 20px;">BPS CHRONICLES<br><span style="font-size:10px; color:#fff;">ULTIMATE EDITION</span></h1>
+            <input type="text" id="auth-user" placeholder="USUÁRIO" style="width:100%; padding:15px; margin-bottom:10px; background:#000; color:var(--gold); border:2px solid var(--border); text-align:center;">
+            <input type="password" id="auth-pass" placeholder="SENHA" style="width:100%; padding:15px; margin-bottom:10px; background:#000; color:var(--gold); border:2px solid var(--border); text-align:center;">
+            <div id="reg-box" style="display:none;">
+                <input type="text" id="p-name-input" placeholder="NOME DO HERÓI" style="width:100%; padding:15px; margin-bottom:10px; background:#000; color:var(--gold); border:2px solid var(--border); text-align:center;">
+                <select id="p-race-select" style="width:100%; padding:15px; margin-bottom:10px; background:#000; color:var(--gold); border:2px solid var(--border);">
+                    <option value="Mago">🧙 MAGO</option>
+                    <option value="Humano">⚔️ HUMANO</option>
+                    <option value="Maldição">💀 MALDIÇÃO</option>
+                </select>
+            </div>
+            <button onclick="handleAuth()" id="auth-btn" style="width:100%; padding:15px;">ENTRAR NO REINO</button>
+            <p onclick="toggleReg()" style="font-size:8px; cursor:pointer; margin-top:15px; color:#aaa;">Novo aqui? Criar uma conta</p>
+        </div>
+    </div>
+
+    <div id="scr-hub" class="screen" style="background-image: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('97057.jpg');">
+        <div class="ui-panel">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <h2 id="hub-name" style="color:var(--gold); font-size:14px;">HERÓI</h2>
+                <span id="hub-race" style="font-size:8px; color:#aaa;">CLASSE</span>
+            </div>
+            
+            <div class="stats-banner">
+                <div>❤️ HP: <span id="st-hp">100</span></div>
+                <div>💧 MP: <span id="st-mana">50</span></div>
+                <div>⚔️ FOR: <span id="st-str">10</span></div>
+                <div>⚡ VEL: <span id="st-spd">10</span></div>
+                <div style="grid-column: span 2; color:var(--xp);">LVL: <span id="st-lv">1</span> | XP: <span id="st-xp-txt">0/100</span></div>
+                <div class="bar-container" style="grid-column: span 2; height: 6px; border-color: var(--xp); margin-top:0;"><div id="st-xp-bar" class="bar-fill" style="background: var(--xp); width: 0%;"></div></div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">
+                <button onclick="changeScreen('scr-battle')" style="grid-column: span 2; background:#5e1919; font-size:10px; padding: 20px;">⚔️ ENFRENTAR BOSS</button>
+                <button onclick="changeScreen('scr-habits')">🏋️ MISSÕES</button>
+                <button onclick="changeScreen('scr-stats')">👤 UPGRADE</button>
+                <button onclick="changeScreen('scr-shop')">🛒 LOJA</button>
+                <button onclick="changeScreen('scr-inv')">🎒 MOCHILA</button>
+            </div>
+            <p style="text-align:center; font-size:10px; margin-top:15px;">
+                💰 BPS: <span id="hub-coins">0</span> | 
+                <span style="color:var(--goldlife);">💎 GL: <span id="hub-gl">0</span></span>
+            </p>
+        </div>
+    </div>
+
+    <div id="scr-battle" class="screen">
+        <div class="battle-stage">
+            <div id="fx-layer"></div> <div class="character-platform">
+                <img id="bt-img-p" src="" class="sprite">
+                <div class="base-oval"></div>
+                <div style="width: 130px; margin-top: 15px;">
+                    <div class="bar-container"><div id="bt-hp-p" class="bar-fill" style="background:#2ecc71; width:100%;"></div></div>
+                    <div class="bar-container" style="height:6px;"><div id="bt-mn-p" class="bar-fill" style="background:#3498db; width:100%;"></div></div>
+                </div>
+            </div>
+            <div class="character-platform">
+                <img id="bt-img-b" src="" class="sprite">
+                <div class="base-oval"></div>
+                <div style="width: 130px; margin-top: 15px;">
+                    <div class="bar-container"><div id="bt-hp-b" class="bar-fill" style="background:#e74c3c; width:100%;"></div></div>
+                    <p id="bt-name-b" style="font-size:8px; text-align:center; color:#ff4d4d; text-shadow: 2px 2px #000; margin-top:5px;">BOSS</p>
+                </div>
+            </div>
+        </div>
+        <div id="battle-log" class="battle-log"></div>
+        <div id="battle-btns" style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; justify-content:center; width:100%; max-width:800px;"></div>
+    </div>
+
+    <div id="scr-habits" class="screen" style="background:#000;">
+        <div class="ui-panel">
+            <button onclick="changeScreen('scr-hub')">< VOLTAR</button>
+            <h3 style="text-align:center; margin-bottom:20px;">MISSÕES DIÁRIAS</h3>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button onclick="addPoints(3, 1, 'Água')">💧 BEBER ÁGUA (+3 PTS / +1 GL)</button>
+                <button onclick="addPoints(5, 2, 'Estudo')">📚 ESTUDAR 25MIN (+5 PTS / +2 GL)</button>
+                <button onclick="addPoints(6, 3, 'Academia')">🏋️ TREINO FÍSICO (+6 PTS / +3 GL)</button>
+                <button onclick="addPoints(4, 1, 'Corrida')">🏃 CORRIDA/CAMINHADA (+4 PTS / +1 GL)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scr-stats" class="screen" style="background:#000;">
+        <div class="ui-panel">
+            <button onclick="changeScreen('scr-hub')">< VOLTAR</button>
+            <h3 style="text-align:center;">TREINAMENTO</h3>
+            <p style="text-align:center; font-size: 10px; color:var(--gold); margin-bottom:20px;">PONTOS DISPONÍVEIS: <span id="train-pts">0</span></p>
+            <div style="display:grid; grid-template-columns:1fr auto; gap:15px; align-items:center;">
+                <span>FORÇA</span> <button onclick="upgrade('str')">+ AUMENTAR</button>
+                <span>VIDA</span> <button onclick="upgrade('hp')">+ AUMENTAR</button>
+                <span>MANA</span> <button onclick="upgrade('mana')">+ AUMENTAR</button>
+                <span>VELOCIDADE</span> <button onclick="upgrade('spd')">+ AUMENTAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scr-shop" class="screen" style="background:#000;">
+        <div class="ui-panel">
+            <button onclick="changeScreen('scr-hub')">< VOLTAR</button>
+            <h3 style="text-align:center; color:var(--gold);">MERCADO</h3>
+            <div class="tab-bar">
+                <button onclick="renderShop('w')">ARMAS</button>
+                <button onclick="renderShop('a')">ARMADURAS</button>
+                <button onclick="renderShop('s')">MAGIAS</button>
+                <button onclick="renderHeroesShop()" style="background:#e67e22; color:#fff;">HERÓIS</button>
+            </div>
+            <div id="shop-list" class="item-grid"></div>
+        </div>
+    </div>
+
+    <div id="scr-inv" class="screen" style="background:#000;">
+        <div class="ui-panel">
+            <button onclick="changeScreen('scr-hub')">< VOLTAR</button>
+            <h3 style="text-align:center;">EQUIPAMENTO</h3>
+            <div id="inv-list" class="item-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- BANCO DE DADOS ---
+        const RARITY = { 
+            C: { n: 'Comum', m: 1, cls: '' }, 
+            R: { n: 'Raro', m: 4, cls: 'rarity-R' }, 
+            E: { n: 'Épico', m: 15, cls: 'rarity-E' }, 
+            L: { n: 'Lendário', m: 50, cls: 'rarity-L' } 
+        };
+
+        // Adicionada propriedade 'anim' para diferenciar animações de skills
+        const ITEMS = [
+            { id: 'w1', t: 'w', n: 'Faca de Mato', p: 50, atk: 15, r: RARITY.C, img: '97076.jpg', pos: '0 0' },
+            { id: 'w2', t: 'w', n: 'Espada Real', p: 80, atk: 80, r: RARITY.R, img: '97076.jpg', pos: '-50px -100px' },
+            { id: 'w3', t: 'w', n: 'Cajado Arcano', p: 300, atk: 250, r: RARITY.E, img: '97076.jpg', pos: '-100px -50px' },
+            { id: 'w4', t: 'w', n: 'Lâmina BPS', p: 150, atk: 500, r: RARITY.L, img: '97076.jpg', pos: '-250px -150px' },
+            { id: 'a1', t: 'a', n: 'Túnica Velha', p: 40, def: 10, r: RARITY.C, img: '97075.jpg', pos: '0 0' },
+            { id: 'a2', t: 'a', n: 'Cota de Malha', p: 200, def: 120, r: RARITY.R, img: '97075.jpg', pos: '-100px 0' },
+            { id: 'a3', t: 'a', n: 'Capa Égide', p: 120, def: 250, r: RARITY.L, img: '97075.jpg', pos: '-200px -150px' },
+            // Skills separadas com tipos de animação
+            { id: 's1', t: 's', n: 'Bola de Fogo', p: 150, dmg: 150, r: RARITY.R, img: '97079.jpg', pos: '0 0', cost: 20, anim: 'fire' },
+            { id: 's2', t: 's', n: 'Cura Sagrada', p: 150, heal: 120, r: RARITY.E, img: '97079.jpg', pos: '-50px 0', cost: 35, anim: 'heal' },
+            { id: 's3', t: 's', n: 'Raio Divino', p: 400, dmg: 350, r: RARITY.E, img: '97079.jpg', pos: '-100px 0', cost: 50, anim: 'fire' } // Usa anim fire por enquanto (vermelho/amarelo)
+        ];
+
+        const BOSSES = [
+            { n: "Elemental de Barro", img: "boss_1.jpg", hp: 150, atk: 20, rew: 100, bg: "cenario_1.jpg" },
+            { n: "Guardião da Floresta", img: "boss_2.jpg", hp: 500, atk: 45, rew: 300, bg: "cenario_2.jpg" },
+            { n: "Nébula do Deserto", img: "boss_3.jpg", hp: 1200, atk: 80, rew: 700, bg: "cenario_3.jpg" },
+            { n: "Golem de Ferro", img: "boss_4.jpg", hp: 2500, atk: 130, rew: 1200, bg: "cenario_4.jpg" },
+            { n: "Lorde das Sombras", img: "boss_5.jpg", hp: 4500, atk: 200, rew: 2000, bg: "cenario_5.jpg" },
+            { n: "Dragão Vermelho", img: "boss_6.jpg", hp: 7000, atk: 300, rew: 4000, bg: "cenario_6.jpg" },
+            { n: "Rei Maldição", img: "boss_7.jpg", hp: 12000, atk: 450, rew: 8000, bg: "cenario_7.jpg" },
+            { n: "Olho Abissal (FINAL)", img: "boss_8.jpg", hp: 25000, atk: 700, rew: 50000, bg: "cenario_8.jpg" }
+        ];
+
+        const ALL_HEROES = [
+            { id: 'h1', race: 'Humano', n: 'Alaric, o Disposto', p: 1000, img: 'hum_alaric.jpg', bonus: { str: 20, hp: 200, mana: 0, spd: 5 } },
+            { id: 'h2', race: 'Mago', n: 'Arkan, o Mestre', p: 2500, img: 'mago_arkan.jpg', bonus: { str: 10, hp: 100, mana: 150, spd: 10 } },
+            { id: 'h3', race: 'Maldição', n: 'Vórtex Supremo', p: 10000, img: 'mal_vortex.jpg', bonus: { str: 200, hp: 2000, mana: 0, spd: 20 } },
+            { id: 'h4', race: 'Humano', n: 'Lina, a Guardiã', p: 1500, img: 'hum_lina.avif', bonus: { str: 15, hp: 150, mana: 50, spd: 15 } },
+            { id: 'h5', race: 'Maldição', n: 'Prokrast', p: 2200, img: 'mal_prokrast.jpg', bonus: { str: 5, hp: 400, mana: 50, spd: -5 } }
+        ];
+
+        let p = {}, currentAccount = null, isReg = false, bt = { active: false };
+
+        // --- SISTEMA DE FULLSCREEN E MÚSICA ---
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) { document.exitFullscreen(); }
+            }
+        }
+
+        function toggleMusic() {
+            const audio = document.getElementById('bg-music');
+            if(audio.paused) { audio.play(); alert("Música Ligada"); } 
+            else { audio.pause(); alert("Música Pausada"); }
+        }
+
+        // --- SISTEMA DE LOGIN & SAVE ---
+        function toggleReg() { isReg = !isReg; document.getElementById('reg-box').style.display = isReg ? 'block' : 'none'; document.getElementById('auth-btn').textContent = isReg ? 'CRIAR CONTA' : 'ENTRAR NO REINO'; }
+        
+        function handleAuth() {
+            const user = document.getElementById('auth-user').value.trim();
+            const pass = document.getElementById('auth-pass').value.trim();
+            if(!user || !pass) return alert("Preencha os dados!");
+
+            let accounts = JSON.parse(localStorage.getItem("bps_accounts")) || [];
+            
+            if(isReg) {
+                if(accounts.find(a => a.user === user)) return alert("Usuário já existe!");
+                const name = document.getElementById('p-name-input').value;
+                const race = document.getElementById('p-race-select').value;
+                const imgMap = { 'Mago': '97072.jpg', 'Maldição': '97073.jpg', 'Humano': '97074.jpg' };
+                
+                // INICIALIZAÇÃO com GoldLife
+                p = { 
+                    name, race, img: imgMap[race], coins: 100, goldLife: 0, pts: 0, 
+                    lv: 1, xp: 0, xpNext: 100,
+                    str: 10, manaM: 50, spd: 10, hpM: 100, 
+                    inv: [], bossIdx: 0, eqW: null, eqA: null,
+                    bonusStr: 0, bonusHp: 0, bonusMana: 0, bonusSpd: 0, bonusDef: 0 
+                };
+                accounts.push({ user, pass, saveData: p });
+                localStorage.setItem("bps_accounts", JSON.stringify(accounts));
+                alert("Conta criada! Faça login.");
+                toggleReg();
+            } else {
+                const acc = accounts.find(a => a.user === user && a.pass === pass);
+                if(acc) { 
+                    p = acc.saveData; 
+                    // Migração de dados caso falte GoldLife
+                    if(p.goldLife === undefined) p.goldLife = 0;
+                    if(!p.xpNext) p.xpNext = 100;
+                    currentAccount = user; 
+                    changeScreen('scr-hub'); 
+                } 
+                else alert("Dados incorretos!");
+            }
+        }
+
+        function save() {
+            if(!currentAccount) return;
+            let accounts = JSON.parse(localStorage.getItem("bps_accounts")) || [];
+            const idx = accounts.findIndex(a => a.user === currentAccount);
+            if(idx !== -1) { accounts[idx].saveData = p; localStorage.setItem("bps_accounts", JSON.stringify(accounts)); }
+        }
+
+        // --- LÓGICA UI ---
+        function changeScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(id === 'scr-shop') renderShop('w');
+            if(id === 'scr-inv') renderInv();
+            if(id === 'scr-battle') startBattle();
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById("hub-name").textContent = p.name.toUpperCase();
+            document.getElementById("hub-race").textContent = p.race.toUpperCase();
+            
+            const tHp = p.hpM + (p.bonusHp||0);
+            const tMn = p.manaM + (p.bonusMana||0);
+            const tStr = p.str + (p.bonusStr||0) + (p.eqW ? p.eqW.atk : 0);
+            const tSpd = p.spd + (p.bonusSpd||0);
+
+            document.getElementById("st-hp").textContent = tHp;
+            document.getElementById("st-mana").textContent = tMn;
+            document.getElementById("st-str").textContent = tStr;
+            document.getElementById("st-spd").textContent = tSpd;
+
+            document.getElementById("hub-coins").textContent = p.coins;
+            document.getElementById("hub-gl").textContent = p.goldLife; // Mostra GL
+            document.getElementById("train-pts").textContent = p.pts;
+            
+            document.getElementById("st-lv").textContent = p.lv;
+            document.getElementById("st-xp-txt").textContent = `${p.xp}/${p.xpNext}`;
+            document.getElementById("st-xp-bar").style.width = Math.min(100, (p.xp / p.xpNext * 100)) + "%";
+
+            save();
+        }
+
+        // --- SISTEMA DE EVOLUÇÃO ---
+        function addPoints(pts, gl, activity) {
+            p.pts += pts;
+            p.xp += pts * 10;
+            p.goldLife += gl; // Adiciona GoldLife
+            
+            if(p.xp >= p.xpNext) {
+                p.lv++;
+                p.xp = p.xp - p.xpNext;
+                p.xpNext = Math.floor(p.xpNext * 1.5);
+                p.pts += 5;
+                alert(`LEVEL UP! Nível ${p.lv} alcançado!`);
+            }
+            alert(`Atividade "${activity}" registrada!\n+${pts} Pontos de Treino\n+${gl} GoldLife\n+${pts*10} XP`);
+            updateUI();
+        }
+
+        function upgrade(stat) {
+            if(p.pts <= 0) return alert("Sem pontos de treino!");
+            if(stat==='str') p.str += 2;
+            if(stat==='hp') p.hpM += 10;
+            if(stat==='mana') p.manaM += 10;
+            if(stat==='spd') p.spd += 2;
+            p.pts--;
+            updateUI();
+        }
+
+        // --- LOJA E INVENTÁRIO ---
+        function renderShop(type) {
+            const list = document.getElementById("shop-list"); list.innerHTML = "";
+            ITEMS.filter(i => i.t === type).forEach(item => {
+                const cost = item.p * item.r.m;
+                const owned = p.inv.some(o => o.id === item.id);
+                // Ícone visual diferente para skill
+                const borderClass = (item.t === 's') ? 'type-skill' : 'type-weapon';
+                
+                list.innerHTML += `
+                    <div class="card ${item.r.cls} ${borderClass}">
+                        <div class="icon-box" style="background-image:url('${item.img}'); background-position:${item.pos}"></div>
+                        <div style="flex-grow:1; margin-left:10px;">
+                            <div style="color:${item.r.m > 10 ? '#f1c40f' : '#fff'}">${item.n}</div>
+                            <div style="color:#aaa; font-size:6px;">${type==='w'?'ATK: '+item.atk : (type==='a'?'DEF: '+item.def : 'MP: '+item.cost)}</div>
+                        </div>
+                        <button onclick="buyItem('${item.id}')" ${owned || p.coins < cost ? 'disabled' : ''}>
+                            ${owned ? 'OK' : cost}
+                        </button>
+                    </div>`;
+            });
+        }
+
+        function renderHeroesShop() {
+            const list = document.getElementById("shop-list"); list.innerHTML = "";
+            ALL_HEROES.forEach(h => {
+                const owned = p.inv.some(i => i.id === h.id);
+                list.innerHTML += `
+                    <div class="card rarity-H" style="border-color:#e67e22;">
+                        <img src="${h.img}" style="width:40px; height:40px; object-fit:cover; border:1px solid #e67e22;">
+                        <div style="flex-grow:1; margin-left:10px;">
+                            <div>${h.n}</div>
+                            <div style="color:#aaa; font-size:6px;">${h.race}</div>
+                        </div>
+                        <button onclick="buyHero('${h.id}')" ${owned || p.coins < h.p ? 'disabled' : ''}>
+                            ${owned ? 'OK' : h.p}
+                        </button>
+                    </div>`;
+            });
+        }
+
+        function buyItem(id) {
+            const it = ITEMS.find(i => i.id === id); const cost = it.p * it.r.m;
+            if(p.coins >= cost) { p.coins -= cost; p.inv.push(JSON.parse(JSON.stringify(it))); updateUI(); renderShop(it.t); }
+        }
+
+        function buyHero(id) {
+            const h = ALL_HEROES.find(i => i.id === id);
+            if(p.coins >= h.p) { p.coins -= h.p; p.inv.push({...h, t: 'h'}); updateUI(); renderHeroesShop(); }
+        }
+
+        function renderInv() {
+            const list = document.getElementById("inv-list"); list.innerHTML = "";
+            if(p.inv.length === 0) list.innerHTML = "<p style='width:200%; text-align:center; color:#666;'>Mochila vazia...</p>";
+            
+            p.inv.forEach((it, idx) => {
+                let isEq = false;
+                if(it.t === 'h' && p.img === it.img) isEq = true;
+                if(it.t === 'w' && p.eqW?.id === it.id) isEq = true;
+                if(it.t === 'a' && p.eqA?.id === it.id) isEq = true;
+
+                let imgHtml = '';
+                if(it.t === 'h') imgHtml = `<img src="${it.img}" style="width:40px; height:40px; object-fit:cover;">`;
+                else imgHtml = `<div class="icon-box" style="background-image:url('${it.img}'); background-position:${it.pos}"></div>`;
+
+                // Borda tracejada para skills para separar visualmente
+                const borderStyle = (it.t === 's') ? 'border-style:dashed;' : '';
+
+                list.innerHTML += `
+                    <div class="card" style="border-color:${isEq?'var(--gold)':'#444'}; ${borderStyle}">
+                        ${imgHtml}
+                        <div style="flex-grow:1; margin-left:10px;">${it.n}</div>
+                        <button onclick="equip(${idx})">${isEq?'DESEQ':'USAR'}</button>
+                    </div>`;
+            });
+        }
+
+        function equip(idx) {
+            const it = p.inv[idx];
+            if(it.t === 'h') {
+                p.img = it.img; p.race = it.race;
+                p.bonusStr = it.bonus.str || 0; p.bonusHp = it.bonus.hp || 0;
+                p.bonusMana = it.bonus.mana || 0; p.bonusSpd = it.bonus.spd || 0;
+            } else if(it.t === 'w') {
+                p.eqW = (p.eqW?.id === it.id) ? null : it;
+            } else if(it.t === 'a') {
+                p.eqA = (p.eqA?.id === it.id) ? null : it;
+            } else if(it.t === 's') {
+                return alert("Magias são equipadas automaticamente na barra de batalha!");
+            }
+            updateUI(); renderInv();
+        }
+
+        // --- SISTEMA DE BATALHA COM ANIMAÇÕES DE SKILL ---
+        function startBattle() {
+            if(p.bossIdx >= BOSSES.length) { alert("PARABÉNS! O REINO ESTÁ SALVO!"); return changeScreen('scr-hub'); }
+            const boss = BOSSES[p.bossIdx];
+            
+            document.getElementById("scr-battle").style.backgroundImage = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('${boss.bg}')`;
+
+            const totalHp = p.hpM + (p.bonusHp||0);
+            const totalMana = p.manaM + (p.bonusMana||0);
+            const totalStr = p.str + (p.bonusStr||0) + (p.eqW ? p.eqW.atk : 0);
+            const totalDef = (p.bonusDef||0) + (p.eqA ? p.eqA.def : 0);
+
+            bt = { 
+                active: true, 
+                pHP: totalHp, pMaxHP: totalHp,
+                pMN: totalMana, pMaxMN: totalMana,
+                bHP: boss.hp, bMaxHP: boss.hp,
+                atkP: totalStr, defP: totalDef
+            };
+
+            document.getElementById("bt-img-p").src = p.img;
+            document.getElementById("bt-img-b").src = boss.img;
+            document.getElementById("bt-name-b").textContent = boss.n;
+            
+            const btnContainer = document.getElementById("battle-btns");
+            btnContainer.innerHTML = `<button onclick="atkP()" style="padding:15px; min-width:100px; background:#444;">⚔️ ATACAR</button>`;
+            
+            p.inv.filter(i => i.t === 's').forEach(spell => {
+                btnContainer.innerHTML += `<button onclick="useSpell('${spell.id}')" style="border-color:#3498db; color:#3498db; border-style:dashed;">✨ ${spell.n} (${spell.cost})</button>`;
+            });
+
+            refreshBars();
+            document.getElementById("battle-log").innerHTML = "";
+            log(`Você encontrou ${boss.n}!`, '#fff');
+        }
+
+        // Função auxiliar para criar efeitos visuais
+        function playFX(type) {
+            const layer = document.getElementById('fx-layer');
+            const fx = document.createElement('div');
+            
+            if(type === 'fire') fx.className = 'fx-fireball';
+            else if(type === 'heal') fx.className = 'fx-heal';
+            else if(type === 'slash') fx.className = 'fx-slash';
+            
+            layer.appendChild(fx);
+            setTimeout(() => fx.remove(), 800); // Remove do DOM após animação
+        }
+
+        function atkP() {
+            if(!bt.active) return;
+            
+            const spr = document.getElementById("bt-img-p");
+            spr.classList.add('atk-p');
+            setTimeout(() => spr.classList.remove('atk-p'), 400);
+
+            // Toca FX de corte se tiver arma equipada, senão soco normal (sem fx específico)
+            if(p.eqW) playFX('slash');
+
+            let dmg = Math.floor(bt.atkP * (0.9 + Math.random()*0.2));
+            
+            // Pequeno delay para o dano coincidir com a animação
+            setTimeout(() => applyBossDmg(dmg, "Ataque físico"), 200);
+        }
+
+        function useSpell(id) {
+            if(!bt.active) return;
+            const s = ITEMS.find(i => i.id === id);
+            
+            if(bt.pMN < s.cost) {
+                return log("Mana insuficiente!", "#888");
+            }
+
+            bt.pMN -= s.cost;
+            
+            // Tocar Animação da Skill
+            if(s.anim) playFX(s.anim);
+
+            if(s.dmg) {
+                setTimeout(() => applyBossDmg(s.dmg, s.n), 500); // Espera a bola de fogo chegar
+            } else if(s.heal) {
+                const healAmt = s.heal;
+                bt.pHP = Math.min(bt.pMaxHP, bt.pHP + healAmt);
+                log(`${s.n} curou ${healAmt} HP!`, 'cyan');
+                refreshBars();
+                setTimeout(bossT, 600);
+            }
+        }
+
+        function applyBossDmg(dmg, source) {
+            bt.bHP -= dmg;
+            
+            const bSpr = document.getElementById("bt-img-b");
+            bSpr.classList.add('take-dmg');
+            
+            log(`${source} causou ${dmg} de dano!`, '#0f0');
+            refreshBars();
+            
+            if(bt.bHP <= 0) win(); 
+            else setTimeout(bossT, 800);
+            
+            setTimeout(() => bSpr.classList.remove('take-dmg'), 500);
+        }
+
+        function bossT() {
+            if(!bt.active) return;
+            
+            const spr = document.getElementById("bt-img-b");
+            spr.classList.add('atk-b');
+            setTimeout(() => spr.classList.remove('atk-b'), 400);
+
+            const b = BOSSES[p.bossIdx];
+            let rawDmg = b.atk * (0.8 + Math.random()*0.4);
+            let dmg = Math.max(5, Math.floor(rawDmg - (bt.defP * 0.5)));
+
+            setTimeout(() => {
+                document.getElementById("game-body").classList.add('shake-screen');
+                document.getElementById("bt-img-p").classList.add('take-dmg');
+                
+                bt.pHP -= dmg;
+                log(`${b.n} atacou: ${dmg} de dano!`, 'red');
+                refreshBars();
+                
+                if(bt.pHP <= 0) { 
+                    alert("Você foi derrotado! Faltou treino..."); 
+                    changeScreen('scr-hub'); 
+                }
+                
+                setTimeout(() => {
+                    document.getElementById("game-body").classList.remove('shake-screen');
+                    document.getElementById("bt-img-p").classList.remove('take-dmg');
+                }, 400);
+            }, 200);
+        }
+
+        function win() {
+            bt.active = false;
+            const b = BOSSES[p.bossIdx]; 
+            p.coins += b.rew; 
+            p.pts += 2; 
+            p.xp += 50; 
+            p.bossIdx++;
+            
+            alert(`VITÓRIA!\nBoss derrotado: ${b.n}\nRecompensa: ${b.rew} bps`);
+            addPoints(0, 0, "Vitória Épica"); 
+            changeScreen('scr-hub');
+        }
+
+        function log(m, c) { const l = document.getElementById("battle-log"); l.innerHTML = `<div style="color:${c}">> ${m}</div>` + l.innerHTML; }
+        
+        function refreshBars() {
+            document.getElementById("bt-hp-p").style.width = Math.max(0, (bt.pHP/bt.pMaxHP*100))+"%";
+            document.getElementById("bt-mn-p").style.width = Math.max(0, (bt.pMN/bt.pMaxMN*100))+"%";
+            document.getElementById("bt-hp-b").style.width = Math.max(0, (bt.bHP/bt.bMaxHP*100))+"%";
+        }
+    </script>
+</body>
+</html>
